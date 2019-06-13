@@ -43,11 +43,20 @@ Qed.
 
 Theorem S_inj: forall n m:nat, S n = S m -> n = m.
 Proof.
+  intros n m.
   injection 1.
   trivial.
 Qed.
 
 Theorem S_inj': forall n m:nat, S n = S m -> n = m.
+Proof.
+  intros n m.
+  intros H.
+  inversion H.
+  reflexivity.
+Qed.
+
+Theorem S_inj'': forall n m:nat, S n = S m -> n = m.
 Proof.
   congruence.
 Qed.
@@ -111,9 +120,9 @@ Theorem nlength_napp : forall ls1 ls2,
 Proof.
   intros.
   induction ls1.
-    simpl.
-      trivial.
-      simpl. rewrite IHls1. trivial.
+  simpl.
+  trivial.
+  simpl. rewrite IHls1. trivial.
 Qed.
 
 Inductive nat_btree : Type :=
@@ -556,7 +565,11 @@ Print sumbool.
 
 Lemma zez: 0=0. reflexivity. Qed.
 
+Print zez.
+
 Lemma znes : forall n, 0 <> S n. intros. discriminate. Qed.
+
+Print znes.
 
 Definition eq_nat_dec'' : forall n m : nat, {n=m} + {n<>m}.
   refine (fix f (n m:nat) : {n=m} + {n<>m} :=

@@ -75,7 +75,7 @@ Example ex1: (evalR (Const 4) 4).
 Proof.
   apply constR.
   Restart.
-  auto.
+  info_auto.
 Qed.
 
 Example ex2: (evalR (Binop Plus (Const 3) (Const 4)) (plus 3 4)).
@@ -86,8 +86,6 @@ Proof.
   Restart.
   info_auto.
 Qed.
-
-Print ex2.
 
 (** What we show here is that the relational definition is satisfied by
   the denotational definition.  Every term [t] evaluated using [expDenote]
