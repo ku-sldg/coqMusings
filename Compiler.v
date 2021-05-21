@@ -1,10 +1,11 @@
-Add LoadPath "./cpdt/src".
+Add LoadPath "./cpdt/src" as CPDT.
 Require Import Bool Arith List.
 Require Import Omega.
+Require Import Lia.
 Set Implicit Arguments.
 
 (** Simple enumeration of two binary operation identifiers, [Plus] and
-    [Times] *)
+  [Times] *)
 Inductive binop : Set := Plus | Times.
 
 (** Simple abstract syntax for an expression language, [exp], with a
@@ -19,8 +20,8 @@ Inductive exp : Set :=
 (** Denotation function for binary operators.  Note that the return value
  is a function of type [nat -> nat].  Thus, each binary operator is denoted to
  a function from [nat] to [nat].  The binary operation [Plus] denotes
-to the gallina [plus] operation.  The binary operation [Times]
-denotes to the gallina [mult] operator.
+ to the gallina [plus] operation.  The binary operation [Times]
+ denotes to the gallina [mult] operator.
 *)
 Definition binopDenote (b:binop) : nat -> nat -> nat :=
  match b with
@@ -37,7 +38,8 @@ Compute (binopDenote Times) 2 3.
  to [n].  [Binop b e1 e2] denotes to the operation [(binopDenote b)] applied
  to the denotation of [e1] and [e2].  We might call this function [eval] 
  instead of [binopDenote].
-*)
+ *)
+
 Fixpoint expDenote (e:exp) : nat :=
   match e with
    | Const n => n
@@ -50,7 +52,7 @@ Compute expDenote (Binop Times (Binop Plus (Const 2) (Const 4)) (Const 5)).
 (** A theorem over addition of natural numbers *)
 Theorem ex0: forall x, (expDenote (Binop Plus (Const x) (Const 4))) >= 4.
 Proof.
-  simpl; induction x; [omega | omega].
+  simpl; induction x; [lia | lia].
 Qed.
 
 (** I'm going to take a detour here and define a relational specification
@@ -199,10 +201,11 @@ Abort.
  4. evaluate [p] with [e :: s].
 
  Nice commuting diagram if you draw the whole thing out.  See
- [Compiler.omnigraffle] for the diagrams.
+ [Compiler.pdf] for the diagrams.
 *)
 
 Lemma compile_correct' : forall e p s,
+ (* progDenote (compile e) nil = Some (expDenote e :: nil). *)
     progDenote (compile e ++ p) s = progDenote p (expDenote e :: s).
 Proof.
   induction e.
@@ -225,6 +228,9 @@ Qed.
 
 Ltac simplify_fn f := unfold f; simpl; fold f.
 Ltac simplify_fns f := unfold f at 1; simpl; fold f.
+Ltac rewrite_Hs := repeat match goal with
+                          | [H: _ = _ |- _] => rewrite H
+                          end.
 
 Lemma compile_correct'' : forall e p s,
     progDenote (compile e ++ p) s = progDenote p (expDenote e :: s).
