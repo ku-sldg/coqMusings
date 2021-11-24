@@ -1,4 +1,3 @@
-Add LoadPath "./cpdt/src" as CPDT.
 Require Import Bool Arith List.
 Require Import Omega.
 Require Import Lia.
@@ -47,7 +46,10 @@ Fixpoint expDenote (e:exp) : nat :=
   end.
 
 (** An experiment to show [expDenote] working as an interpreter *)
+
 Compute expDenote (Binop Times (Binop Plus (Const 2) (Const 4)) (Const 5)).
+
+(* 5*(2+4) *)
 
 (** A theorem over addition of natural numbers *)
 Theorem ex0: forall x, (expDenote (Binop Plus (Const x) (Const 4))) >= 4.
@@ -59,17 +61,18 @@ Qed.
   of [exp] semantics and verify [expDenote] with respect to that
   definition. *)
 
-(** [evalR] is a relation defining a big-step operational semantics for [evalR]
-  that we would like to be congruent with the denotational semantics.  [evalR]
-  is defined in the canonical Coq style for binary relations.
+(** [evalR] is a relation defining a big-step operational semantics
+  that we would like to be congruent with the denotational semantics above. 
+  [evalR] is defined in the canonical Coq style for binary relations using
+  [Inductive] to define cases.  Here we define the true cases for our relation.
 *)
 
 Inductive evalR : exp -> nat -> Prop :=
 | constR: forall n, (evalR (Const n) n)
-| plusR: forall n1 n2 v1 v2 ,
-    (evalR n1 v1) -> (evalR n2 v2) -> (evalR (Binop Plus n1 n2) (plus v1 v2))
-| timesR: forall n1 n2 v1 v2 ,
-    (evalR n1 v1) -> (evalR n2 v2) -> (evalR (Binop Times n1 n2) (mult v1 v2)).
+| plusR: forall n1 n2 v1 v2 v,
+    (evalR n1 v1) -> (evalR n2 v2) -> (plus v1 v2)=v -> (evalR (Binop Plus n1 n2) v)
+| timesR: forall n1 n2 v1 v2 v,
+    (evalR n1 v1) -> (evalR n2 v2) -> (mult v1 v2)=v -> (evalR (Binop Times n1 n2) v).
 
 Hint Constructors evalR.
 
@@ -80,13 +83,14 @@ Proof.
   info_auto.
 Qed.
 
-Example ex2: (evalR (Binop Plus (Const 3) (Const 4)) (plus 3 4)).
+Example ex2: (evalR (Binop Plus (Const 3) (Const 4)) 7).
 Proof.
-  apply plusR.
+  eapply plusR.
   apply constR.
   apply constR.
+  lia.
   Restart.
-  info_auto.
+  info_eauto.
 Qed.
 
 (** What we show here is that the relational definition is satisfied by
@@ -97,7 +101,7 @@ Theorem correctness1: forall e:exp, (evalR e (expDenote e)).
 Proof.
   intros e; induction e.
   - apply constR.
-  - destruct b; simpl; [apply plusR | apply timesR]; repeat assumption.
+  - destruct b; simpl; [info_eauto | info_eauto].
 Qed.
 
 (** What we've proved is that every call to [(expDenote e)] results in a
@@ -112,12 +116,13 @@ Inductive instr : Set :=
 | iConst : nat -> instr
 | iBinop : binop -> instr.
 
+
 Definition prog := list instr.
 Definition stack := list nat.
 
 (** Denote the behavior of individual instructions.  Constants evaluate to
   constants that are added to the stack while binary operations operate on
-  the top two values on the stack.  [insrDenote] denotes an instruction 
+  the top two values on the stack.  [instrDenote] denotes an instruction 
   and initial stack to a lifted stack, [option stack].  [i] is a single
   instruction while [s] is a value stack. [option stack] is the new stack. *)
 
@@ -350,15 +355,91 @@ Qed.
 Check unit_ind.
 Check list_ind.
 
-(** Operational semantics not ready yet 
+Inductive evalS : exp -> exp -> Prop :=
+| plusS: forall v1 v2 v,
+    (plus v1 v2)=v -> evalS (Binop Plus (Const v1) (Const v2)) (Const v)
+| timesS: forall v1 v2 v,
+    (mult v1 v2)=v -> evalS (Binop Times (Const v1) (Const v2)) (Const v)
+| plusLS : forall t1 t1' t2,
+    (evalS t1 t1') -> (evalS (Binop Plus t1 t2) (Binop Plus t1' t2))
+| timesLS : forall t1 t1' t2,
+    (evalS t1 t1') -> (evalS (Binop Times t1 t2) (Binop Times t1' t2))
+| plusRS : forall t2 t2' v1,
+    (evalS t2 t2') ->
+    (evalS (Binop Plus (Const v1) t2) (Binop Plus (Const v1) t2'))
+| timesRS : forall t2 t2' v1,
+    (evalS t2 t2') ->
+    (evalS (Binop Plus (Const v1) t2) (Binop Plus (Const v1) t2')).
 
-Inductive evalR' : exp -> exp -> Prop :=
-| plusR': forall n1 n2 v1 v2,
-    (evalR' n1 v1) -> (evalR' n2 v2) -> (evalR' (Binop Plus n1 n2)
-                                              (match (n1,n2) with
-                                                 ((Const v1'),(Const v2')) => (Const (plus v1' v2')) end))
-| timesR': forall n1 n2 v1 v2,
-    (evalR' n1 v1) -> (evalR' n2 v2) -> (evalR' (Binop Times n1 n2)
-                                              (match (n1,n2) with
-                                                 ((Const v1'),(Const v2')) => (Const (mult v1' v2')) end)).
-*)
+Hint Constructors evalS.
+
+Inductive evalRStar: exp -> exp -> Prop :=
+| base: forall t1 t2, (evalS t1 t2) -> (evalRStar t1 t2)
+| step: forall t1 t2 t3, (evalRStar t1 t2) -> (evalS t2 t3) -> (evalRStar t1 t3).
+
+Hint Constructors evalRStar.
+
+Example op1: (evalS (Binop Plus (Const 2) (Const 3)) (Const (2 + 3))).
+Proof.
+  auto.
+Qed.
+
+Example op2: (evalS (Binop Times (Const 2) (Const 3)) (Const (2 * 3))).
+Proof.
+  auto.
+Qed.
+
+Example op3: (evalS (Binop Plus (Binop Times (Const 2) (Const 3)) (Const 4))
+                     (Binop Plus (Const 6) (Const 4))).
+Proof.
+  apply plusLS. apply timesS. reflexivity.
+Qed.
+
+Example op4: (evalRStar (Binop Plus (Const 2) (Const 3)) (Const (2 + 3))).
+Proof.
+  auto.
+Qed.
+
+Example op5: (evalRStar (Binop Times (Const 2) (Const 3)) (Const (2 * 3))).
+Proof.
+  auto.
+Qed.
+
+Example op6: (evalRStar (Binop Plus (Binop Times (Const 2) (Const 3)) (Const 4))
+                        (Const 10)).
+Proof.
+  eapply step; auto.
+Qed.
+
+Inductive evalB : exp -> exp -> Prop :=
+| constB: forall n, (evalB (Const n) (Const n))
+| plusB: forall n1 n2 v1 v2 v,
+    (evalB n1 (Const v1)) -> (evalB n2 (Const v2)) -> (plus v1 v2)=v -> (evalB (Binop Plus n1 n2) (Const v))
+| timesB: forall n1 n2 v1 v2 v,
+    (evalB n1 (Const v1)) -> (evalB n2 (Const v2)) -> (mult v1 v2)=v -> (evalB (Binop Times n1 n2) (Const v)).
+
+Hint Constructors evalB.
+
+Example ex6: (evalB (Binop Plus (Const 1) (Const 2)) (Const 3)).
+Proof.
+  eapply plusB.
+  auto. auto. auto.
+Qed.
+
+Example ex7: (evalB (Binop Plus (Binop Plus (Const 1) (Const 2)) (Const 3)) (Const 6)).
+Proof.
+  eapply plusB.
+  eapply plusB.
+  auto. auto. auto. auto. auto.
+Qed.
+
+Theorem equiv1: forall t1 t2, evalB t1 t2 -> evalRStar t1 t2.
+Proof.
+  intros.
+  induction H.
+  apply base
+
+Theorem equiv2: forall t1 t2, (evalRStar t1 t2) -> (evalS t1 t2).
+  intros; induction H.
+  assumption.
+  
