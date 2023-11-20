@@ -79,7 +79,10 @@ Hint Constructors evalR.
 Example ex1: (evalR (Const 4) 4).
 Proof.
   apply constR.
-  Restart.
+Qed.
+
+Example ex1': (evalR (Const 4) 4).
+Proof.
   info_auto.
 Qed.
 
@@ -89,7 +92,10 @@ Proof.
   apply constR.
   apply constR.
   lia.
-  Restart.
+Qed.
+
+Example ex2': (evalR (Binop Plus (Const 3) (Const 4)) 7).
+Proof.
   info_eauto.
 Qed.
 

@@ -1,5 +1,6 @@
 Require Import Arith.
-Require Import Omega.
+Require Import Lia.
+
 
 Inductive unit : Set :=
   | tt.
