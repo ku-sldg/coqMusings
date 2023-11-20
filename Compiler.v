@@ -1,5 +1,4 @@
 Require Import Bool Arith List.
-Require Import Omega.
 Require Import Lia.
 Set Implicit Arguments.
 
@@ -438,14 +437,3 @@ Proof.
   eapply plusB.
   auto. auto. auto. auto. auto.
 Qed.
-
-Theorem equiv1: forall t1 t2, evalB t1 t2 -> evalRStar t1 t2.
-Proof.
-  intros.
-  induction H.
-  apply base
-
-Theorem equiv2: forall t1 t2, (evalRStar t1 t2) -> (evalS t1 t2).
-  intros; induction H.
-  assumption.
-  
