@@ -23,6 +23,8 @@ Module QueueAsInductive <: Queue.
   | empty : queue
   | add : nat -> queue -> queue.
 
+  Eval compute in (add 2 (add 3 empty)).
+  
   Definition queueT := queue.
   Definition emptyT := empty.
   Definition addT := add.
@@ -72,6 +74,7 @@ Module QueueAsInductive <: Queue.
     intros n q.
     intros H.
     subst.
+    simpl.
     reflexivity.
   Qed.
 

@@ -1,66 +1,78 @@
-Require Import Bool Arith List.
-Require Import Lia.
+From Coq Require Bool Arith List.
+From Coq Require Lia.
 Set Implicit Arguments.
 
-(** Simple enumeration of two binary operation identifiers, [Plus] and
-  [Times] *)
-Inductive binop : Set := Plus | Times.
-
 (** Simple abstract syntax for an expression language, [exp], with a
-  constant value constructed with [Const] and a binary operation [Binop].
-  Note that [Binop] is recursive and uses the type [binop] to specify what
-  binary operation is being represented.
-*)
+  constant value constructed with [Num] and binary operations [Plus] and
+  [Mult].
+ *)
+
 Inductive exp : Set := 
-| Const : nat -> exp
-| Binop : binop -> exp -> exp -> exp.
+| Num : nat -> exp
+| Plus : exp -> exp -> exp
+| Mult : exp -> exp -> exp.
 
 Check exp_ind.
 
-Check (Const 3).
-Check (Binop Plus (Const 2) (Const 3)).
+Check (Num 3).
+Check (Plus (Num 2) (Num 3)).
+Check (Mult (Num 2) (Num 3)).
 
-(** Denotation function for binary operators.  Note that the return value
- is a function of type [nat -> nat].  Thus, each binary operator is denoted to
- a function from [nat] to [nat].  The binary operation [Plus] denotes
- to the gallina [plus] operation.  The binary operation [Times]
- denotes to the gallina [mult] operator.
-*)
-Definition binopDenote (b:binop) : nat -> nat -> nat :=
- match b with
-  | Plus => plus
-  | Times => mult
- end.
-
-(** A couple of experiments showing how [binopDenote] works. *)
-
-Compute (binopDenote Plus) 2 3.
-Compute (binopDenote Times) 2 3.
-  
-(** Recursive function that denotes an [exp] to a [nat]. [Const n] denotes
- to [n].  [Binop b e1 e2] denotes to the operation [(binopDenote b)] applied
+(** Recursive function that denotes an [exp] to a [nat]. [Num n] denotes
+ to [n].  [Plus e1 e2] denotes to the operation [plus] applied
  to the denotation of [e1] and [e2].  We might call this function [eval] 
- instead of [binopDenote].
+ instead of [expDenote].
  *)
 
 Fixpoint expDenote (e:exp) : nat :=
   match e with
-   | Const n => n
-   | Binop b e1 e2 => (binopDenote b) (expDenote e1) (expDenote e2)
+  | Num n => n
+  | Plus e1 e2 => (plus (expDenote e1) (expDenote e2))
+  | Mult e1 e2 => (mult (expDenote e1) (expDenote e2))
   end.
 
 (** An experiment to show [expDenote] working as an interpreter *)
 
-Compute expDenote (Binop Times (Binop Plus (Const 2) (Const 4)) (Const 5)).
-Check expDenote (Binop Times (Binop Plus (Const 2) (Const 4)) (Const 5)).
+Compute expDenote (Mult (Plus (Num 2) (Num 4)) (Num 5)).
+Check expDenote (Mult (Plus (Num 2) (Num 4)) (Num 5)).
 
 (* 5*(2+4) *)
 
 (** A theorem over addition of natural numbers *)
-Theorem ex0: forall x, (expDenote (Binop Plus (Const x) (Const 4))) >= 4.
+Theorem ex0: forall x, (expDenote (Plus (Num x) (Num 4))) >= 4.
 Proof.
   simpl. induction x; lia.
 Qed.
+
+(* * Verifying a simple optimization that replaces [0+x] with [x].  In [expOpt]
+  we replace [0+x] by [x] using pattern matching and leave everything else
+  alone. *)
+Fixpoint expOpt (e:exp) : exp :=
+  match e with
+  | Num n => Num n
+  | Plus (Num 0) e2 => (expOpt e2)
+  | Plus e1 e2 => (Plus (expOpt e1) (expOpt e2))
+  | Mult e1 e2 => (Mult (expOpt e1) (expOpt e2))
+  end.
+
+(* * The correctness theorem simply says that denoting an expression has the
+  same value as denoting its optimization.  Note that in the proof we're only
+  using commands learned so far.  Heavy use of induction hypotheses and a nested
+  [destruct] structure the verification. *)
+Theorem optimize_correct: forall e,
+  (expDenote e) = ((expDenote (expOpt e))).
+Proof.
+  intros e. induction e.
+  - reflexivity.
+  - simpl. rewrite IHe1. rewrite IHe2. destruct e1.
+    destruct n.
+    + simpl. reflexivity.
+    + simpl. reflexivity.
+    + simpl. reflexivity.
+    + simpl. reflexivity.
+  - simpl. rewrite <- IHe1. rewrite <- IHe2. reflexivity.
+Qed.
+
 
 (** I'm going to take a detour here and define a relational specification
   of [exp] semantics and verify [expDenote] with respect to that
@@ -69,29 +81,30 @@ Qed.
 (** [evalR] is a relation defining a big-step operational semantics
   that we would like to be congruent with the denotational semantics above. 
   [evalR] is defined in the canonical Coq style for binary relations using
-  [Inductive] to define cases.  Here we define the true cases for our relation.
+  [Inductive] to define cases.  Here we define the true cases for our
+  relation.
 *)
 
 Inductive evalR : exp -> nat -> Prop :=
-| constR: forall n, (evalR (Const n) n)
+| constR: forall n, (evalR (Num n) n)
 | plusR: forall n1 n2 v1 v2 v,
-    (evalR n1 v1) -> (evalR n2 v2) -> (plus v1 v2)=v -> (evalR (Binop Plus n1 n2) v)
-| timesR: forall n1 n2 v1 v2 v,
-    (evalR n1 v1) -> (evalR n2 v2) -> (mult v1 v2)=v -> (evalR (Binop Times n1 n2) v).
+    (evalR n1 v1) -> (evalR n2 v2) -> (plus v1 v2)=v -> (evalR (Plus n1 n2) v)
+| multR: forall n1 n2 v1 v2 v,
+    (evalR n1 v1) -> (evalR n2 v2) -> (mult v1 v2)=v -> (evalR (Mult n1 n2) v).
 
 Hint Constructors evalR.
 
-Example ex1: (evalR (Const 4) 4).
+Example ex1: (evalR (Num 4) 4).
 Proof.
   apply constR.
 Qed.
 
-Example ex1': (evalR (Const 4) 4).
+Example ex1': (evalR (Num 4) 4).
 Proof.
   info_auto.
 Qed.
 
-Example ex2: (evalR (Binop Plus (Const 3) (Const 4)) 7).
+Example ex2: (evalR (Plus (Num 3) (Num 4)) 7).
 Proof.
   eapply plusR.
   apply constR.
@@ -99,7 +112,7 @@ Proof.
   simpl. reflexivity.
 Qed.
 
-Example ex2': (evalR (Binop Plus (Const 3) (Const 4)) 7).
+Example ex2': (evalR (Plus (Num 3) (Num 4)) 7).
 Proof.
   info_eauto.
 Qed.
@@ -112,9 +125,8 @@ Theorem correctness1: forall e:exp, (evalR e (expDenote e)).
 Proof.
   intros e. induction e.
   - apply constR.
-  - destruct b.
-    + simpl. eapply plusR. apply IHe1. apply IHe2. reflexivity.
-    + simpl. eapply timesR. apply IHe1. apply IHe2. reflexivity.
+  - simpl. eapply plusR. apply IHe1. apply IHe2. reflexivity.
+  - simpl. eapply multR. apply IHe1. apply IHe2. reflexivity.
 (*  - destruct b; simpl; info_eauto. *)
 Qed.
 
@@ -128,8 +140,8 @@ Qed.
 
 Inductive instr : Set :=
 | iConst : nat -> instr
-| iBinop : binop -> instr.
-
+| iPlus : instr
+| iMult : instr. 
 
 Definition prog := list instr.
 Definition stack := list nat.
@@ -143,9 +155,14 @@ Definition stack := list nat.
 Definition instrDenote (i:instr) (s:stack) : option stack :=
   match i with
     | iConst n => Some (n :: s)
-    | iBinop b =>
+    | iPlus =>
        match s with
-        | arg1 :: arg2 :: s' => Some ((binopDenote b) arg1 arg2 :: s')
+        | arg1 :: arg2 :: s' => Some (plus arg1 arg2 :: s')
+        | _ => None
+       end
+    | iMult =>
+       match s with
+        | arg1 :: arg2 :: s' => Some (mult arg1 arg2 :: s')
         | _ => None
        end
   end.
@@ -176,17 +193,18 @@ Fixpoint progDenote (p:prog) (s:stack) : option stack :=
 
 Fixpoint compile (e:exp) : prog :=
   match e with
-    | Const n => iConst n :: nil
-    | Binop b c1 c2 => compile c2 ++ compile c1 ++ iBinop b :: nil
+    | Num n => iConst n :: nil
+    | Plus c1 c2 => compile c2 ++ compile c1 ++ iPlus :: nil
+    | Mult c1 c2 => compile c2 ++ compile c1 ++ iMult :: nil
   end.
 
 (** These examples compile [exp] terms to [prog]. *)
-Compute compile (Const 12).
-Compute compile (Binop Plus (Const 12) (Const 2)).
+Compute compile (Num 12).
+Compute compile (Plus (Num 12) (Num 2)).
 
 (** These examples compile [exp] terms to [prog] and evalutes the result. *)
-Compute progDenote (compile (Const 12)) nil.
-Compute progDenote (compile (Binop Plus (Const 12) (Const 2))) nil.
+Compute progDenote (compile (Num 12)) nil.
+Compute progDenote (compile (Plus (Num 12) (Num 2))) nil.
 
 (** The first correctness theorem states that the compiler is correct when
   given an expression [e] evaluating [e] directly using [expDenote] gives
@@ -197,7 +215,7 @@ Compute progDenote (compile (Binop Plus (Const 12) (Const 2))) nil.
 
 Theorem compile_correct :
   forall e, progDenote (compile e) nil = Some (expDenote e :: nil).
-Proof. 
+Proof.
   intros; induction e.
   reflexivity.
   unfold compile. unfold progDenote. simpl. fold compile. fold progDenote.
@@ -245,6 +263,14 @@ Proof.
     rewrite IHe1.
     unfold progDenote at 1. simpl. fold progDenote.
     reflexivity.
+  + intros. unfold compile. simpl. fold compile.
+    unfold expDenote. simpl. fold expDenote.
+    rewrite app_ass.
+    rewrite IHe2.
+    rewrite app_ass.
+    rewrite IHe1.
+    unfold progDenote at 1. simpl. fold progDenote.
+    reflexivity.
 Qed.
 
 Check app_assoc.
@@ -265,6 +291,15 @@ Proof.
   induction e.
   + intros.
     unfold compile. unfold expDenote.
+    simplify_fn progDenote.
+    reflexivity.
+  + intros.
+    simplify_fn compile.
+    simplify_fn expDenote.
+    rewrite app_ass.
+    rewrite IHe2.
+    rewrite app_ass.
+    rewrite IHe1.
     simplify_fn progDenote.
     reflexivity.
   + intros.
